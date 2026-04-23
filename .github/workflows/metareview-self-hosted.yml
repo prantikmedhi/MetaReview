@@ -1,0 +1,52 @@
+name: MetaReview PR Guardrail Self-Hosted
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  analyze-pr:
+    runs-on: self-hosted
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout workflow code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Verify local OpenMetadata is reachable
+        run: curl --fail http://localhost:8585/api/v1/system/version
+
+      - name: Run MetaReview
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENMETADATA_URL: ${{ secrets.OPENMETADATA_URL }}
+          OPENMETADATA_JWT_TOKEN: ${{ secrets.OPENMETADATA_JWT_TOKEN }}
+          OPENMETADATA_VERIFY_SSL: ${{ vars.OPENMETADATA_VERIFY_SSL || 'false' }}
+          OPENMETADATA_MAX_DOWNSTREAM_DEPTH: ${{ vars.OPENMETADATA_MAX_DOWNSTREAM_DEPTH || '2' }}
+          METAREVIEW_MODEL: ${{ vars.METAREVIEW_MODEL || 'gemini-1.5-flash' }}
+          METAREVIEW_MAX_FILES: ${{ vars.METAREVIEW_MAX_FILES || '25' }}
+          PYTHONPATH: src
+        run: python -m metareview.main
+
