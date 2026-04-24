@@ -4,7 +4,7 @@
   <img src="https://github.com/prantikmedhi/MetaReview/actions/workflows/metareview.yml/badge.svg" alt="MetaReview PR Guardrail" />
   <br />
   <br />
-  <img src="docs/pr-comment.png" alt="MetaReview Action Screenshot" width="1200" />
+  <img src="docs/pr-comment.jpg" alt="MetaReview Action Screenshot" width="800" />
 </div>
 
 <br/>
