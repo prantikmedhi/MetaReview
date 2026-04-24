@@ -2,7 +2,7 @@
 
 MetaReview is a metadata-aware pull request guardrail for data teams. It analyzes SQL and dbt-oriented pull requests, pulls schema and lineage context from OpenMetadata, asks Gemini for a human-readable review, and posts a structured comment back into GitHub.
 
-For a fully free hackathon setup, MetaReview can run against a local Docker deployment of OpenMetadata on your machine. The recommended end-to-end path is a self-hosted GitHub Actions runner on the same laptop, so the workflow can reach `http://localhost:8585/api`.
+For a fully free hackathon setup without Docker, MetaReview can run against the hosted OpenMetadata sandbox at `https://sandbox.open-metadata.org`. The default GitHub-hosted workflow can reach this URL directly, so no self-hosted runner is needed.
 
 ## Why this stands out
 
@@ -32,18 +32,32 @@ PRD.md                             Original product requirements
 
 ## Quick start
 
-1. Start OpenMetadata locally with Docker on your machine.
-2. Generate an OpenMetadata bot or personal token.
+1. Open `https://sandbox.open-metadata.org`.
+2. Sign in with Google and generate a personal access token.
 3. Add GitHub secrets:
    - `GEMINI_API_KEY`
-   - `OPENMETADATA_URL`
-   - `OPENMETADATA_JWT_TOKEN`
-4. Use one of these execution modes:
-   - `Local CLI`: run MetaReview directly from your terminal against a PR
-   - `Self-hosted GitHub runner`: full PR-comment flow with local Docker OpenMetadata
+   - `OPENMETADATA_URL=https://sandbox.open-metadata.org`
+   - `OPENMETADATA_JWT_TOKEN=<sandbox_personal_access_token>`
+4. Optional GitHub variable:
+   - `OPENMETADATA_VERIFY_SSL=true`
 5. Open pull request that changes `.sql`, dbt model, or SQL-containing files.
+6. The default GitHub Action posts a MetaReview comment on the PR.
 
 Full setup is in [SETUP.md](./SETUP.md).
+
+## Free sandbox setup
+
+Use this path when you want the simplest free demo with no Docker:
+
+```bash
+export OPENMETADATA_URL=https://sandbox.open-metadata.org
+export OPENMETADATA_VERIFY_SSL=true
+export OPENMETADATA_JWT_TOKEN=<your_personal_access_token>
+```
+
+`OPENMETADATA_URL=https://sandbox.open-metadata.org/api` also works. MetaReview normalizes both forms internally.
+
+Never commit the token or paste it in shared channels. Store it only in your local shell or GitHub repository secrets.
 
 ## Local run
 
@@ -56,7 +70,8 @@ export GITHUB_TOKEN=ghp_xxx
 export GITHUB_REPOSITORY=owner/repo
 export PR_NUMBER=12
 export GEMINI_API_KEY=xxx
-export OPENMETADATA_URL=http://localhost:8585/api
+export OPENMETADATA_URL=https://sandbox.open-metadata.org
+export OPENMETADATA_VERIFY_SSL=true
 export OPENMETADATA_JWT_TOKEN=xxx
 
 PYTHONPATH=src python3 -m metareview.main
@@ -64,7 +79,7 @@ PYTHONPATH=src python3 -m metareview.main
 
 ## Workflow options
 
-- [`.github/workflows/metareview.yml`](./.github/workflows/metareview.yml): default GitHub-hosted runner workflow. Use this only when OpenMetadata is reachable from GitHub-hosted infrastructure.
+- [`.github/workflows/metareview.yml`](./.github/workflows/metareview.yml): default GitHub-hosted runner workflow. Use this with the hosted OpenMetadata sandbox.
 - [`.github/workflows/metareview-self-hosted.yml`](./.github/workflows/metareview-self-hosted.yml): recommended free path for local Docker OpenMetadata. Run a self-hosted GitHub Actions runner on same Mac.
 
 ## Demo story
@@ -84,8 +99,7 @@ PYTHONPATH=src python3 -m metareview.main
 
 ## Local OpenMetadata defaults
 
-For local Docker deployment, use:
+If you choose local Docker instead of the hosted sandbox, use:
 
 - `OPENMETADATA_URL=http://localhost:8585/api`
 - `OPENMETADATA_VERIFY_SSL=false`
-

@@ -1,136 +1,116 @@
 # MetaReview Setup Guide
 
-This guide is optimized for a fully free, end-to-end hackathon setup:
+This guide is optimized for a fully free, end-to-end hackathon setup without Docker:
 
-- OpenMetadata running locally in Docker on your Mac
-- MetaReview running either from your terminal or from a self-hosted GitHub Actions runner on the same machine
+- OpenMetadata hosted sandbox at `https://sandbox.open-metadata.org`
+- GitHub-hosted Actions runner
 - Gemini providing review text
 - GitHub pull request comment as final output
 
-## 1. Architecture that actually works locally
+## 1. Architecture
 
-There are two valid ways to run MetaReview against a local Docker deployment of OpenMetadata:
+Recommended flow:
 
-### Option A. Local CLI run
+1. OpenMetadata sandbox hosts metadata, tags, and lineage.
+2. GitHub Actions runs MetaReview on `ubuntu-latest`.
+3. MetaReview reads the pull request diff through the GitHub API.
+4. MetaReview calls the OpenMetadata sandbox API.
+5. Gemini turns the metadata findings into readable review text.
+6. MetaReview posts or updates a GitHub PR comment.
 
-Use this when you want fastest setup and maximum demo reliability.
+This avoids Docker, local OpenMetadata, and self-hosted runners.
 
-Flow:
-
-1. OpenMetadata runs on your Mac in Docker
-2. MetaReview runs from your terminal
-3. MetaReview reads PR diff through GitHub API
-4. MetaReview calls local OpenMetadata at `http://localhost:8585/api`
-5. MetaReview posts review comment back to GitHub
-
-### Option B. Self-hosted GitHub Actions runner
-
-Use this when you want full GitHub Action automation while keeping OpenMetadata local and free.
-
-Flow:
-
-1. OpenMetadata runs on your Mac in Docker
-2. Self-hosted GitHub Actions runner runs on same Mac
-3. Workflow calls local OpenMetadata through `localhost`
-4. Workflow posts review comment back to GitHub
-
-Important:
-
-GitHub-hosted runners cannot reach `localhost` on your laptop. If OpenMetadata stays local, use local CLI or self-hosted runner.
-
-## 2. MacBook Air M2 guidance
-
-For your `MacBook Air M2, 16 GB RAM, 256 GB SSD`:
-
-- This setup is viable for hackathon demo use
-- Allocate `6-8 GB` RAM to Docker
-- Allocate `4 CPUs` to Docker
-- Keep at least `25-30 GB` free disk before setup
-- Keep charger connected during demo
-
-Official local Docker minimum from OpenMetadata docs:
-
-- `6 GiB` memory
-- `4 vCPUs`
-
-## 3. Prerequisites
+## 2. Prerequisites
 
 You need:
 
-- Docker Desktop
-- Python `3.11+`
+- Python `3.11+` for local testing
 - GitHub repository for this project
-- GitHub personal access token for local testing
 - Gemini API key
+- OpenMetadata sandbox account
+- OpenMetadata sandbox personal access token
 
-## 4. Start OpenMetadata locally with Docker
+## 3. Set up OpenMetadata sandbox
 
-Use the official OpenMetadata local Docker deployment guide:
+1. Open `https://sandbox.open-metadata.org`.
+2. Sign in with Google.
+3. Complete onboarding by adding yourself as a user/team member.
+4. Search for sample tables in the sandbox.
+5. Pick one useful demo table with at least one of:
+   - PII or sensitive tag
+   - deprecated or important column
+   - downstream lineage
 
-- Local Docker deployment: `https://docs.open-metadata.org/latest/quick-start/local-docker-deployment`
+Use this during the live demo to show that MetaReview is powered by OpenMetadata metadata.
 
-High-level steps:
+## 4. Generate OpenMetadata token
 
-1. Install Docker Desktop
-2. Open Docker Desktop settings
-3. Set resources:
-   - Memory: `6 GB` minimum, `8 GB` preferred
-   - CPU: `4`
-4. Follow OpenMetadata quickstart to download their Docker Compose file
-5. Start the stack with Docker Compose
-6. Wait until OpenMetadata UI becomes reachable at:
-   - `http://localhost:8585`
+In the sandbox UI:
 
-Quick health check:
+1. Open **Settings**.
+2. Open **Team & User Management**.
+3. Open **Users**.
+4. Select your user.
+5. Generate a personal access token.
 
-```bash
-curl http://localhost:8585/api/v1/system/version
-```
+Do not paste this token in chat, commits, screenshots, or shared docs. Store it only in your shell or GitHub secrets.
 
-If that responds, MetaReview can talk to OpenMetadata locally.
-
-## 5. Generate OpenMetadata API token
-
-After OpenMetadata is running:
-
-1. Open `http://localhost:8585`
-2. Sign in to OpenMetadata
-3. Generate either:
-   - bot token, recommended for automation
-   - personal access token, acceptable for demo
-
-Official auth docs:
-
-- `https://docs.open-metadata.org/v1.13.x-SNAPSHOT/api-reference/authentication`
-
-Use these local values:
+MetaReview accepts either sandbox URL:
 
 ```bash
-OPENMETADATA_URL=http://localhost:8585/api
-OPENMETADATA_VERIFY_SSL=false
-OPENMETADATA_JWT_TOKEN=<generated_token>
+OPENMETADATA_URL=https://sandbox.open-metadata.org
 ```
 
-## 6. Seed demo metadata in OpenMetadata
+or:
 
-Before demo, make sure OpenMetadata contains metadata that produces strong review output.
+```bash
+OPENMETADATA_URL=https://sandbox.open-metadata.org/api
+```
 
-Recommended demo entities:
+Both are normalized internally.
 
-- table `analytics.users`
-- column `analytics.users.email` tagged as `PII`
-- table `analytics.orders`
-- column `analytics.orders.legacy_user_id` marked deprecated
-- at least one downstream dashboard or model connected through lineage
+## 5. Configure GitHub secrets
 
-Target demo story:
+In your repository, open:
 
-- PR touches `users.email`
-- PR references deprecated column
-- OpenMetadata shows downstream dependencies
-- MetaReview returns `HIGH` or `MEDIUM` risk with concrete reasons
+```text
+Settings -> Secrets and variables -> Actions -> Repository secrets
+```
 
-## 7. Configure MetaReview locally
+Add:
+
+| Secret | Value |
+|---|---|
+| `GEMINI_API_KEY` | your Gemini API key |
+| `OPENMETADATA_URL` | `https://sandbox.open-metadata.org` |
+| `OPENMETADATA_JWT_TOKEN` | your OpenMetadata sandbox personal access token |
+
+Optional repository variables:
+
+```text
+Settings -> Secrets and variables -> Actions -> Variables
+```
+
+| Variable | Recommended value |
+|---|---|
+| `OPENMETADATA_VERIFY_SSL` | `true` |
+| `OPENMETADATA_MAX_DOWNSTREAM_DEPTH` | `2` |
+| `METAREVIEW_MODEL` | `gemini-1.5-flash` |
+| `METAREVIEW_MAX_FILES` | `25` |
+
+## 6. Workflow to use
+
+Use the default GitHub-hosted workflow:
+
+```text
+.github/workflows/metareview.yml
+```
+
+This workflow runs on `ubuntu-latest` and can reach `https://sandbox.open-metadata.org`.
+
+Do not use the self-hosted workflow for the sandbox path. The self-hosted workflow is only useful when OpenMetadata runs on your laptop.
+
+## 7. Local test run
 
 From repo root:
 
@@ -140,26 +120,20 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Use `.env.example` as your reference values.
-
-Export variables:
+Export values:
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token
-export GITHUB_REPOSITORY=prantikmedhi/MetaReview
+export GITHUB_REPOSITORY=owner/repo
 export PR_NUMBER=1
 export GEMINI_API_KEY=your_gemini_key
-export OPENMETADATA_URL=http://localhost:8585/api
-export OPENMETADATA_JWT_TOKEN=your_openmetadata_token
-export OPENMETADATA_VERIFY_SSL=false
+export OPENMETADATA_URL=https://sandbox.open-metadata.org
+export OPENMETADATA_JWT_TOKEN=your_openmetadata_sandbox_token
+export OPENMETADATA_VERIFY_SSL=true
 export OPENMETADATA_MAX_DOWNSTREAM_DEPTH=2
 export METAREVIEW_MODEL=gemini-1.5-flash
 export METAREVIEW_MAX_FILES=25
 ```
-
-## 8. Run MetaReview from terminal
-
-This is easiest fully free path.
 
 Run:
 
@@ -169,136 +143,90 @@ PYTHONPATH=src python3 -m metareview.main
 
 Expected outcome:
 
-- MetaReview fetches PR files from GitHub
-- MetaReview queries local OpenMetadata
-- MetaReview asks Gemini for review copy
-- MetaReview creates or updates GitHub PR comment
+- MetaReview fetches PR files from GitHub.
+- MetaReview queries the OpenMetadata sandbox.
+- MetaReview asks Gemini for review copy.
+- MetaReview creates or updates a GitHub PR comment.
 
-## 9. Run as self-hosted GitHub Action
-
-This is best if judges want to see real automation.
-
-Repository now includes:
-
-- [`.github/workflows/metareview-self-hosted.yml`](./.github/workflows/metareview-self-hosted.yml)
-
-This workflow:
-
-- runs on `self-hosted`
-- checks local OpenMetadata health
-- executes MetaReview against your local Docker OpenMetadata
-
-### GitHub setup
-
-Add repository secrets under `Settings -> Secrets and variables -> Actions`:
-
-| Secret | Value for local Docker setup |
-|---|---|
-| `GEMINI_API_KEY` | your Gemini key |
-| `OPENMETADATA_URL` | `http://localhost:8585/api` |
-| `OPENMETADATA_JWT_TOKEN` | token generated in local OpenMetadata |
-
-Optional repository variables:
-
-| Variable | Recommended value |
-|---|---|
-| `OPENMETADATA_VERIFY_SSL` | `false` |
-| `OPENMETADATA_MAX_DOWNSTREAM_DEPTH` | `2` |
-| `METAREVIEW_MODEL` | `gemini-1.5-flash` |
-| `METAREVIEW_MAX_FILES` | `25` |
-
-### Runner setup
-
-1. In GitHub repository, open `Settings -> Actions -> Runners`
-2. Add self-hosted runner
-3. Install runner on same Mac where Docker OpenMetadata is running
-4. Start runner
-5. Enable workflow file:
-   - [`.github/workflows/metareview-self-hosted.yml`](./.github/workflows/metareview-self-hosted.yml)
-
-## 10. Which workflow file to use
-
-- [`.github/workflows/metareview.yml`](./.github/workflows/metareview.yml)
-  Use when OpenMetadata is hosted somewhere reachable from GitHub-hosted runners.
-- [`.github/workflows/metareview-self-hosted.yml`](./.github/workflows/metareview-self-hosted.yml)
-  Use when OpenMetadata runs locally on your laptop in Docker.
-
-For your free local setup, prefer self-hosted workflow.
-
-## 11. Best demo sequence
+## 8. Best demo sequence
 
 Recommended live demo:
 
-1. Show local OpenMetadata UI at `http://localhost:8585`
-2. Show `users.email` tagged as PII
-3. Show lineage from affected table to dashboard/model
-4. Open GitHub PR with SQL change
-5. Trigger local CLI run or self-hosted workflow
-6. Open PR comment from MetaReview
-7. Explain:
-   - sensitive data risk
-   - deprecated field risk
-   - downstream blast radius
-   - impact score
+1. Open `https://sandbox.open-metadata.org`.
+2. Show a table with tags, columns, or lineage.
+3. Open a GitHub PR that changes SQL.
+4. Trigger or wait for `.github/workflows/metareview.yml`.
+5. Open the MetaReview PR comment.
+6. Explain:
+   - OpenMetadata supplied metadata context
+   - Gemini converted it into reviewer-friendly language
+   - GitHub PR comment keeps the guardrail in the developer workflow
 
-## 12. Troubleshooting
+## 9. Troubleshooting
 
-### OpenMetadata UI does not load
+### GitHub Action cannot authenticate with OpenMetadata
 
 Check:
 
-- Docker Desktop is running
-- Docker has at least `6 GB` memory
-- OpenMetadata containers are healthy
+- `OPENMETADATA_JWT_TOKEN` is a current, unexpired token.
+- The token was copied without extra spaces or quotes.
+- `OPENMETADATA_URL` is `https://sandbox.open-metadata.org`.
+- `OPENMETADATA_VERIFY_SSL` is `true`.
 
-### `curl http://localhost:8585/api/v1/system/version` fails
+If you accidentally exposed a token, revoke it and generate a new one.
 
-Check:
-
-- OpenMetadata is not fully started yet
-- port `8585` is in use by another service
-- Docker resources are too low
-
-### GitHub Action cannot reach OpenMetadata
-
-Root cause is usually runner type mismatch.
-
-- If workflow runs on `ubuntu-latest`, it cannot reach your laptop `localhost`
-- Use self-hosted runner or local CLI mode
-
-### OpenMetadata auth fails
+### GitHub Action finds no OpenMetadata tables
 
 Check:
 
-- `OPENMETADATA_URL` is exactly `http://localhost:8585/api`
-- token is valid
-- token has enough permissions
+- The SQL in the PR references table names that exist in the sandbox.
+- Try simpler table names from the sandbox search UI.
+- Use a PR that references a known sandbox table for the demo.
 
 ### Gemini fails
 
-MetaReview falls back to deterministic static review text. Demo still works, but response will be less polished.
+MetaReview falls back to deterministic static review text. The PR comment still works, but the wording will be less polished.
 
-## 13. Professional hackathon framing
+### Workflow does not run
+
+Check:
+
+- Actions are enabled for the repository.
+- The workflow file exists at `.github/workflows/metareview.yml`.
+- The PR changes a SQL or SQL-like file.
+
+## 10. Professional hackathon framing
 
 Use this narrative:
 
-- Problem: metadata exists, but developers do not see it during PR review
-- Insight: OpenMetadata already knows lineage and sensitivity
-- Product: MetaReview injects that knowledge directly into code review
-- Outcome: fewer broken dashboards, safer data changes, faster review loops
+- Problem: metadata exists, but developers do not see it during PR review.
+- Insight: OpenMetadata already knows lineage and sensitivity.
+- Product: MetaReview injects that knowledge directly into code review.
+- Outcome: fewer broken dashboards, safer data changes, faster review loops.
 
-## 14. Submission checklist
+## 11. Submission checklist
 
 Before final submission:
 
-- verify local OpenMetadata starts cleanly on your Mac
-- verify `curl` health check works
-- verify one PR gets comment successfully
-- prepare one guaranteed PII example
-- prepare one guaranteed lineage example
-- keep terminal window ready as backup to run local CLI mode
-- record short backup demo video
+- verify sandbox login works
+- verify OpenMetadata token is stored as a GitHub secret
+- verify Gemini key is stored as a GitHub secret
+- verify one PR gets a MetaReview comment
+- prepare one known sandbox table example
+- prepare one SQL PR that references that table
+- record a short backup demo video
 
-## 15. One-line pitch
+## 12. Optional Docker fallback
 
-MetaReview turns local OpenMetadata intelligence into live pull request guardrails for safer data engineering changes.
+If the sandbox is unavailable, you can still run OpenMetadata locally with Docker and use:
+
+```bash
+OPENMETADATA_URL=http://localhost:8585/api
+OPENMETADATA_VERIFY_SSL=false
+```
+
+For that path, use a local CLI run or `.github/workflows/metareview-self-hosted.yml`, because GitHub-hosted runners cannot reach `localhost` on your laptop.
+
+## 13. One-line pitch
+
+MetaReview turns OpenMetadata intelligence into live pull request guardrails for safer data engineering changes.

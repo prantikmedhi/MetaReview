@@ -7,6 +7,15 @@ from urllib.parse import quote
 import requests
 
 
+def _normalize_base_url(base_url: str) -> str:
+    normalized = base_url.strip().rstrip("/")
+    if not normalized:
+        raise ValueError("OpenMetadata base URL cannot be empty")
+    if normalized.endswith("/api"):
+        return normalized
+    return f"{normalized}/api"
+
+
 @dataclass
 class TableMetadata:
     name: str
@@ -21,7 +30,7 @@ class TableMetadata:
 
 class OpenMetadataClient:
     def __init__(self, base_url: str, jwt_token: str, verify_ssl: bool = True) -> None:
-        self.base_url = base_url
+        self.base_url = _normalize_base_url(base_url)
         self.verify_ssl = verify_ssl
         self.session = requests.Session()
         self.session.headers.update(
@@ -33,8 +42,11 @@ class OpenMetadataClient:
         )
 
     def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        normalized_path = path.lstrip("/")
+        if normalized_path.startswith("api/"):
+            normalized_path = normalized_path[4:]
         response = self.session.get(
-            f"{self.base_url}{path}",
+            f"{self.base_url}/{normalized_path}",
             params=params,
             timeout=30,
             verify=self.verify_ssl,
