@@ -7,11 +7,16 @@ from metareview.github_client import PullRequestFile
 
 SQL_FILE_EXTENSIONS = (".sql", ".ddl", ".dml")
 TEXT_SQL_EXTENSIONS = (".py", ".yml", ".yaml", ".json", ".txt", ".md")
+IDENTIFIER_PART = r'(?:[a-zA-Z_][\w$]*|`[^`]+`|"[^"]+")'
 TABLE_PATTERN = re.compile(
-    r"\b(?:from|join|update|into|table)\s+([a-zA-Z_][\w$.]*)",
+    rf"\b(?:from|join|update|into|table)\s+({IDENTIFIER_PART}(?:\.{IDENTIFIER_PART})*)",
     flags=re.IGNORECASE,
 )
-COLUMN_PATTERN = re.compile(r"\b([a-zA-Z_][\w]*)\.([a-zA-Z_][\w]*)\b")
+COLUMN_PATTERN = re.compile(r"(?<![.\w])([a-zA-Z_][\w]*)\.([a-zA-Z_][\w]*)(?![.\w])")
+DBT_REF_PATTERN = re.compile(r"\{\{\s*ref\(\s*['\"]([^'\"]+)['\"]\s*\)\s*\}\}")
+DBT_SOURCE_PATTERN = re.compile(
+    r"\{\{\s*source\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"]([^'\"]+)['\"]\s*\)\s*\}\}"
+)
 
 
 @dataclass
@@ -43,6 +48,18 @@ def _extract_added_lines(patch: str) -> str:
     return "\n".join(lines)
 
 
+def _normalize_identifier(identifier: str) -> str:
+    parts = []
+    for part in identifier.split("."):
+        parts.append(part.strip().strip("`\""))
+    return ".".join(part for part in parts if part)
+
+
+def _overlaps(span: tuple[int, int], blocked_spans: list[tuple[int, int]]) -> bool:
+    start, end = span
+    return any(start < blocked_end and end > blocked_start for blocked_start, blocked_end in blocked_spans)
+
+
 def parse_pr_files(files: list[PullRequestFile]) -> ParsedChanges:
     snippets: list[str] = []
     tables: set[str] = set()
@@ -62,10 +79,23 @@ def parse_pr_files(files: list[PullRequestFile]) -> ParsedChanges:
         snippets.append(sql_text.strip())
         touched_files.append(file.filename)
 
-        for match in TABLE_PATTERN.findall(sql_text):
-            tables.add(match.strip("`"))
-        for table_name, column_name in COLUMN_PATTERN.findall(sql_text):
-            tables.add(table_name)
+        for match in DBT_REF_PATTERN.findall(sql_text):
+            tables.add(match)
+        for source_name, table_name in DBT_SOURCE_PATTERN.findall(sql_text):
+            tables.add(f"{source_name}.{table_name}")
+
+        table_spans: list[tuple[int, int]] = []
+        for match in TABLE_PATTERN.finditer(sql_text):
+            identifier = match.group(1)
+            normalized = _normalize_identifier(identifier)
+            if normalized:
+                tables.add(normalized)
+            table_spans.append(match.span(1))
+
+        for match in COLUMN_PATTERN.finditer(sql_text):
+            if _overlaps(match.span(), table_spans):
+                continue
+            table_name, column_name = match.groups()
             columns.add(f"{table_name}.{column_name}")
 
     return ParsedChanges(
@@ -74,4 +104,3 @@ def parse_pr_files(files: list[PullRequestFile]) -> ParsedChanges:
         columns=sorted(columns),
         touched_files=touched_files,
     )
-

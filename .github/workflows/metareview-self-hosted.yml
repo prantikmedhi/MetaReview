@@ -1,11 +1,6 @@
 name: MetaReview PR Guardrail Self-Hosted
 
 on:
-  pull_request_target:
-    types:
-      - opened
-      - synchronize
-      - reopened
   workflow_dispatch:
 
 permissions:
@@ -49,4 +44,3 @@ jobs:
           METAREVIEW_MAX_FILES: ${{ vars.METAREVIEW_MAX_FILES || '25' }}
           PYTHONPATH: src
         run: python -m metareview.main
-

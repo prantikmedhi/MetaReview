@@ -26,11 +26,27 @@ class GitHubClient:
             }
         )
 
+    def _get_paginated(self, url: str, max_items: int | None = None) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        next_url: str | None = url
+        params: dict[str, int] | None = None
+        if max_items is not None:
+            params = {"per_page": min(max(max_items, 1), 100)}
+
+        while next_url:
+            response = self.session.get(next_url, params=params, timeout=30)
+            response.raise_for_status()
+            items.extend(response.json())
+            if max_items is not None and len(items) >= max_items:
+                return items[:max_items]
+            next_url = response.links.get("next", {}).get("url")
+            params = None
+
+        return items
+
     def get_pull_request_files(self, pr_number: int, max_files: int) -> list[PullRequestFile]:
-        response = self.session.get(f"{self.base_url}/pulls/{pr_number}/files", timeout=30)
-        response.raise_for_status()
         files = []
-        for item in response.json()[:max_files]:
+        for item in self._get_paginated(f"{self.base_url}/pulls/{pr_number}/files", max_files):
             files.append(
                 PullRequestFile(
                     filename=item["filename"],
@@ -41,9 +57,7 @@ class GitHubClient:
         return files
 
     def list_issue_comments(self, issue_number: int) -> list[dict[str, Any]]:
-        response = self.session.get(f"{self.base_url}/issues/{issue_number}/comments", timeout=30)
-        response.raise_for_status()
-        return response.json()
+        return self._get_paginated(f"{self.base_url}/issues/{issue_number}/comments")
 
     def upsert_issue_comment(self, issue_number: int, marker: str, body: str) -> None:
         existing = None
@@ -65,4 +79,3 @@ class GitHubClient:
                 timeout=30,
             )
         response.raise_for_status()
-
