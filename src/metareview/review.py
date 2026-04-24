@@ -27,6 +27,12 @@ def build_risk_summary(parsed: ParsedChanges, tables: list[TableMetadata]) -> Ri
     downstream_assets: set[str] = set()
     sql_blob = "\n".join(parsed.sql_snippets)
 
+    def table_referenced(table: TableMetadata) -> bool:
+        if not parsed.tables:
+            return True
+        names = {table.name, table.fully_qualified_name}
+        return any(parsed_table in names or parsed_table.endswith(f".{table.name}") for parsed_table in parsed.tables)
+
     def column_referenced(table_name: str, column_name: str) -> bool:
         fully_qualified = f"{table_name}.{column_name}"
         return fully_qualified in parsed.columns or bool(
@@ -34,6 +40,9 @@ def build_risk_summary(parsed: ParsedChanges, tables: list[TableMetadata]) -> Ri
         )
 
     for table in tables:
+        if not table_referenced(table):
+            continue
+
         downstream_assets.update(table.downstream_assets)
 
         for column in table.pii_columns:
