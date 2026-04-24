@@ -1,10 +1,17 @@
-# MetaReview
+<div align="center">
+  <h1>MetaReview 🛡️</h1>
+  <p><b>Metadata-aware pull request guardrail for data engineering teams.</b></p>
+  <img src="https://github.com/prantikmedhi/MetaReview/actions/workflows/metareview.yml/badge.svg" alt="MetaReview PR Guardrail" />
+  <br />
+  <br />
+  <img src="docs/pr-comment.png" alt="MetaReview Action Screenshot" width="800" />
+</div>
 
-![MetaReview PR Guardrail](https://github.com/prantikmedhi/MetaReview/actions/workflows/metareview.yml/badge.svg)
+<br/>
 
-MetaReview is a metadata-aware pull request guardrail for data engineering teams. It reviews SQL-bearing pull requests, enriches the diff with OpenMetadata table context, scores data-change risk, and posts an actionable review comment back to GitHub.
+MetaReview reviews SQL-bearing pull requests, enriches the diff with OpenMetadata table context, scores data-change risk, and posts an actionable review comment back to GitHub.
 
-MetaReview does not execute pull request SQL and does not extract warehouse rows. It operates on GitHub diffs, metadata APIs, and generated reviewer guidance.
+MetaReview **does not** execute pull request SQL and **does not** extract warehouse rows. It operates purely on GitHub diffs, metadata APIs, and generated reviewer guidance.
 
 ## What It Does
 
@@ -17,10 +24,12 @@ MetaReview does not execute pull request SQL and does not extract warehouse rows
 
 ## System Flow
 
-![MetaReview architecture](docs/metareview-flow.svg)
+<p align="center">
+  <img src="docs/metareview-flow.svg" alt="MetaReview architecture" width="800"/>
+</p>
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[Pull request] --> B[GitHub Action]
     B --> C[MetaReview parser]
     C --> D[OpenMetadata API]

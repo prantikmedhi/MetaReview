@@ -1,0 +1,8 @@
+flowchart TD
+    A[Pull request] --> B[GitHub Action]
+    B --> C[MetaReview parser]
+    C --> D[OpenMetadata API]
+    C --> E[Risk scorer]
+    D --> E
+    E --> F[Gemini review writer]
+    F --> G[GitHub PR comment]
