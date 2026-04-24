@@ -53,6 +53,11 @@ class OpenMetadataClientTests(unittest.TestCase):
             "/api/v1/tables/name/acme_nexus_raw_data.acme_raw.crm.customers",
         )
 
+    def test_accepts_string_tag_values_from_openmetadata(self) -> None:
+        client = OpenMetadataClient("https://sandbox.open-metadata.org", "token")
+
+        self.assertEqual(client._extract_tag_names(["PII.Sensitive"]), ["PII.Sensitive"])
+
 
 if __name__ == "__main__":
     unittest.main()

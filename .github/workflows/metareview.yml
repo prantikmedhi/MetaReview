@@ -41,8 +41,7 @@ jobs:
           OPENMETADATA_JWT_TOKEN: ${{ secrets.OPENMETADATA_JWT_TOKEN }}
           OPENMETADATA_VERIFY_SSL: ${{ vars.OPENMETADATA_VERIFY_SSL || 'true' }}
           OPENMETADATA_MAX_DOWNSTREAM_DEPTH: ${{ vars.OPENMETADATA_MAX_DOWNSTREAM_DEPTH || '2' }}
-          METAREVIEW_MODEL: ${{ vars.METAREVIEW_MODEL || 'gemini-1.5-flash' }}
+          METAREVIEW_MODEL: ${{ vars.METAREVIEW_MODEL || 'gemini-2.5-flash' }}
           METAREVIEW_MAX_FILES: ${{ vars.METAREVIEW_MAX_FILES || '25' }}
           PYTHONPATH: src
         run: python -m metareview.main
-

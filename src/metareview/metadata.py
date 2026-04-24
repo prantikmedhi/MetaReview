@@ -54,10 +54,13 @@ class OpenMetadataClient:
         response.raise_for_status()
         return response.json()
 
-    def _extract_tag_names(self, values: list[dict[str, Any]]) -> list[str]:
+    def _extract_tag_names(self, values: list[dict[str, Any] | str]) -> list[str]:
         tags: list[str] = []
         for value in values:
-            tag_fqn = value.get("tagFQN")
+            if isinstance(value, str):
+                tags.append(value)
+                continue
+            tag_fqn = value.get("tagFQN") or value.get("name")
             if tag_fqn:
                 tags.append(tag_fqn)
         return tags

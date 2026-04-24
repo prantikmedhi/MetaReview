@@ -43,11 +43,10 @@ class Settings:
             github_repository=required["GITHUB_REPOSITORY"] or "",
             pr_number=int(required["PR_NUMBER"] or "0"),
             gemini_api_key=required["GEMINI_API_KEY"] or "",
-            gemini_model=os.getenv("METAREVIEW_MODEL", "gemini-1.5-flash"),
+            gemini_model=os.getenv("METAREVIEW_MODEL", "gemini-2.5-flash"),
             openmetadata_url=(required["OPENMETADATA_URL"] or "").rstrip("/"),
             openmetadata_jwt_token=required["OPENMETADATA_JWT_TOKEN"] or "",
             openmetadata_verify_ssl=_bool_env("OPENMETADATA_VERIFY_SSL", True),
             openmetadata_max_downstream_depth=int(os.getenv("OPENMETADATA_MAX_DOWNSTREAM_DEPTH", "2")),
             metareview_max_files=int(os.getenv("METAREVIEW_MAX_FILES", "25")),
         )
-

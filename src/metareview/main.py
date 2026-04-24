@@ -36,10 +36,20 @@ def main() -> int:
     risk = build_risk_summary(parsed, metadata_tables)
     prompt = build_prompt(parsed, metadata_tables, risk)
 
-    try:
-        review_body = call_gemini(settings.gemini_api_key, settings.gemini_model, prompt)
-    except Exception as exc:
-        print(f"Gemini generation failed: {exc}", file=sys.stderr)
+    review_body = ""
+    gemini_models = [
+        settings.gemini_model,
+        "gemini-2.5-flash",
+        "gemini-flash-latest",
+    ]
+    for model in dict.fromkeys(gemini_models):
+        try:
+            review_body = call_gemini(settings.gemini_api_key, model, prompt)
+            break
+        except Exception as exc:
+            print(f"Gemini generation failed for {model}: {exc}", file=sys.stderr)
+
+    if not review_body:
         review_body = build_fallback_review(parsed, risk)
 
     comment = wrap_comment(review_body, risk)
