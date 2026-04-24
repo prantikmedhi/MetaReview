@@ -58,6 +58,15 @@ class OpenMetadataClientTests(unittest.TestCase):
 
         self.assertEqual(client._extract_tag_names(["PII.Sensitive"]), ["PII.Sensitive"])
 
+    def test_accepts_string_column_values_from_openmetadata(self) -> None:
+        client = OpenMetadataClient("https://sandbox.open-metadata.org", "token")
+
+        column_tags, pii_columns, deprecated_columns = client._extract_column_tags(["email"])
+
+        self.assertEqual(column_tags, {"email": []})
+        self.assertEqual(pii_columns, [])
+        self.assertEqual(deprecated_columns, [])
+
 
 if __name__ == "__main__":
     unittest.main()

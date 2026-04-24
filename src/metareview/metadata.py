@@ -71,11 +71,16 @@ class OpenMetadataClient:
         deprecated_columns: list[str] = []
 
         for column in columns:
-            name = column.get("name", "")
-            tags = self._extract_tag_names(column.get("tags", []))
+            if isinstance(column, str):
+                name = column
+                tags = []
+                description = ""
+            else:
+                name = column.get("name", "")
+                tags = self._extract_tag_names(column.get("tags", []))
+                description = (column.get("description") or "").lower()
             column_tags[name] = tags
 
-            description = (column.get("description") or "").lower()
             tag_blob = " ".join(tags).lower()
             if any(word in tag_blob for word in ("pii", "sensitive", "email", "ssn")):
                 pii_columns.append(name)
@@ -97,7 +102,11 @@ class OpenMetadataClient:
                 params={"upstreamDepth": 0, "downstreamDepth": max_depth},
             )
             for node in lineage.get("downstreamEdges", []):
+                if not isinstance(node, dict):
+                    continue
                 to_entity = node.get("toEntity", {})
+                if not isinstance(to_entity, dict):
+                    continue
                 label = to_entity.get("fullyQualifiedName") or to_entity.get("name")
                 if label:
                     downstream_assets.append(label)

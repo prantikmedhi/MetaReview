@@ -39,10 +39,18 @@ def build_risk_summary(parsed: ParsedChanges, tables: list[TableMetadata]) -> Ri
             re.search(rf"\b{re.escape(column_name)}\b", sql_blob, flags=re.IGNORECASE)
         )
 
+    def add_sql_pii_hints() -> None:
+        pii_names = ("email", "phone_number", "ssn", "social_security_number", "credit_card")
+        for column_name in pii_names:
+            if re.search(rf"\b{re.escape(column_name)}\b", sql_blob, flags=re.IGNORECASE):
+                pii_hits.append(column_name)
+
+    matched_metadata_table = False
     for table in tables:
         if not table_referenced(table):
             continue
 
+        matched_metadata_table = True
         downstream_assets.update(table.downstream_assets)
 
         for column in table.pii_columns:
@@ -54,6 +62,9 @@ def build_risk_summary(parsed: ParsedChanges, tables: list[TableMetadata]) -> Ri
             full_name = f"{table.name}.{column}"
             if column_referenced(table.name, column):
                 deprecated_hits.append(full_name)
+
+    if not pii_hits and (not tables or matched_metadata_table):
+        add_sql_pii_hints()
 
     score = 1.0
     score += min(len(pii_hits) * 2.5, 5.0)
