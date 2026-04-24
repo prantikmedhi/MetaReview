@@ -15,7 +15,7 @@ class ReviewTests(unittest.TestCase):
             ],
             tables=["acme_nexus_raw_data.acme_raw.crm.customers"],
             columns=[],
-            touched_files=["demo/metareview_demo.sql"],
+            touched_files=["examples/customer_contact_review.sql"],
         )
         table = TableMetadata(
             name="customers",

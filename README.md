@@ -1,65 +1,96 @@
 # MetaReview
 
-MetaReview is a metadata-aware pull request guardrail for data teams. It analyzes SQL and dbt-oriented pull requests, pulls schema and lineage context from OpenMetadata, asks Gemini for a human-readable review, and posts a structured comment back into GitHub.
+![MetaReview PR Guardrail](https://github.com/prantikmedhi/MetaReview/actions/workflows/metareview.yml/badge.svg)
 
-For a fully free hackathon setup without Docker, MetaReview can run against the hosted OpenMetadata sandbox at `https://sandbox.open-metadata.org`. The default GitHub-hosted workflow can reach this URL directly, so no self-hosted runner is needed.
+MetaReview is a metadata-aware pull request guardrail for data engineering teams. It reviews SQL-bearing pull requests, enriches the diff with OpenMetadata table context, scores data-change risk, and posts an actionable review comment back to GitHub.
 
-## Why this stands out
+MetaReview does not execute pull request SQL and does not extract warehouse rows. It operates on GitHub diffs, metadata APIs, and generated reviewer guidance.
 
-- Brings OpenMetadata intelligence into pull request workflows.
-- Flags PII exposure, deprecated columns, and downstream blast radius before merge.
-- Produces a risk score and executive summary that judges can understand in seconds.
-- Ships as a GitHub Action, so there is no separate UI to build or explain.
+## What It Does
 
-## MVP capabilities
+- Detects SQL additions in `.sql`, dbt-oriented, and SQL-like text files.
+- Extracts referenced tables, dbt `ref()` / `source()` calls, and qualified columns.
+- Looks up OpenMetadata table, column, tag, and lineage context.
+- Flags sensitive fields, deprecated columns, and downstream impact.
+- Generates a concise review with Gemini, with deterministic fallback text when AI generation is unavailable.
+- Upserts one stable GitHub PR comment instead of creating duplicates.
 
-- Fetch changed files from a pull request through the GitHub API
-- Extract SQL additions and referenced tables/columns
-- Query OpenMetadata for table metadata and lineage
-- Score impact as `LOW`, `MEDIUM`, or `HIGH`
-- Generate a polished review with Gemini
-- Upsert a GitHub pull request comment
-- Fall back to deterministic review text if Gemini is unavailable
+## System Flow
 
-## Repository layout
+![MetaReview architecture](docs/metareview-flow.svg)
+
+```mermaid
+flowchart LR
+    A[Pull request] --> B[GitHub Action]
+    B --> C[MetaReview parser]
+    C --> D[OpenMetadata API]
+    C --> E[Risk scorer]
+    D --> E
+    E --> F[Gemini review writer]
+    F --> G[GitHub PR comment]
+```
+
+## Architecture
+
+| Layer | Responsibility | Key files |
+|---|---|---|
+| GitHub integration | Fetch PR files and upsert review comments | `src/metareview/github_client.py` |
+| SQL parser | Extract changed SQL, table names, dbt refs, and column refs | `src/metareview/parsing.py` |
+| Metadata client | Query OpenMetadata table and lineage APIs | `src/metareview/metadata.py` |
+| Risk engine | Score PII, deprecated fields, and downstream exposure | `src/metareview/review.py` |
+| Runtime entrypoint | Orchestrate fetch, enrichment, scoring, and comment publishing | `src/metareview/main.py` |
+
+## Repository Layout
 
 ```text
-.github/workflows/metareview.yml   GitHub Action workflow
-src/metareview/                    Core Python package
-SETUP.md                           End-to-end setup guide
-PRD.md                             Original product requirements
+.github/workflows/metareview.yml             Hosted GitHub Action workflow
+.github/workflows/metareview-self-hosted.yml Manual workflow for local OpenMetadata deployments
+docs/metareview-flow.svg                     Architecture diagram
+examples/customer_contact_review.sql         Example SQL change for validation
+src/metareview/                              Runtime package
+tests/                                      Unit tests
+SETUP.md                                    Deployment and operating guide
 ```
 
-## Quick start
+## Quick Start
 
-1. Open `https://sandbox.open-metadata.org`.
-2. Sign in with Google and generate a personal access token.
-3. Add GitHub secrets:
-   - `GEMINI_API_KEY`
-   - `OPENMETADATA_URL=https://sandbox.open-metadata.org`
-   - `OPENMETADATA_JWT_TOKEN=<sandbox_personal_access_token>`
-4. Optional GitHub variable:
-   - `OPENMETADATA_VERIFY_SSL=true`
-5. Open pull request that changes `.sql`, dbt model, or SQL-containing files.
-6. The default GitHub Action posts a MetaReview comment on the PR.
+1. Configure repository secrets:
 
-Full setup is in [SETUP.md](./SETUP.md).
+   | Secret | Description |
+   |---|---|
+   | `GEMINI_API_KEY` | Gemini API key used for review text generation |
+   | `OPENMETADATA_URL` | OpenMetadata base URL, for example `https://sandbox.open-metadata.org` |
+   | `OPENMETADATA_JWT_TOKEN` | OpenMetadata personal access token |
 
-## Free sandbox setup
+2. Optionally configure repository variables:
 
-Use this path when you want the simplest free demo with no Docker:
+   | Variable | Default |
+   |---|---|
+   | `OPENMETADATA_VERIFY_SSL` | `true` |
+   | `OPENMETADATA_MAX_DOWNSTREAM_DEPTH` | `2` |
+   | `METAREVIEW_MODEL` | `gemini-2.5-flash` |
+   | `METAREVIEW_MAX_FILES` | `25` |
 
-```bash
-export OPENMETADATA_URL=https://sandbox.open-metadata.org
-export OPENMETADATA_VERIFY_SSL=true
-export OPENMETADATA_JWT_TOKEN=<your_personal_access_token>
+3. Open a pull request that changes SQL or dbt model content.
+
+4. Wait for `MetaReview PR Guardrail` to finish.
+
+5. Review the generated PR comment with impact score, detected risks, and recommended actions.
+
+## Example SQL Change
+
+```sql
+select
+  customer_id,
+  email,
+  phone_number
+from acme_nexus_raw_data.acme_raw.crm.customers
+where email is not null;
 ```
 
-`OPENMETADATA_URL=https://sandbox.open-metadata.org/api` also works. MetaReview normalizes both forms internally.
+MetaReview reads this SQL from the PR diff, identifies sensitive fields, looks up the referenced table in OpenMetadata, and posts a review without running the query.
 
-Never commit the token or paste it in shared channels. Store it only in your local shell or GitHub repository secrets.
-
-## Local run
+## Local Run
 
 ```bash
 python3 -m venv .venv
@@ -71,35 +102,51 @@ export GITHUB_REPOSITORY=owner/repo
 export PR_NUMBER=12
 export GEMINI_API_KEY=xxx
 export OPENMETADATA_URL=https://sandbox.open-metadata.org
-export OPENMETADATA_VERIFY_SSL=true
 export OPENMETADATA_JWT_TOKEN=xxx
+export OPENMETADATA_VERIFY_SSL=true
+export METAREVIEW_MODEL=gemini-2.5-flash
 
 PYTHONPATH=src python3 -m metareview.main
 ```
 
-## Workflow options
+## Operational Notes
 
-- [`.github/workflows/metareview.yml`](./.github/workflows/metareview.yml): default GitHub-hosted runner workflow. Use this with the hosted OpenMetadata sandbox.
-- [`.github/workflows/metareview-self-hosted.yml`](./.github/workflows/metareview-self-hosted.yml): recommended free path for local Docker OpenMetadata. Run a self-hosted GitHub Actions runner on same Mac.
+- Use `.github/workflows/metareview.yml` for hosted OpenMetadata or internet-reachable OpenMetadata deployments.
+- Use `.github/workflows/metareview-self-hosted.yml` only when OpenMetadata is reachable from a self-hosted runner.
+- Store tokens only in GitHub secrets or local environment variables.
+- Keep `METAREVIEW_MAX_FILES` bounded for predictable API runtime.
+- Treat Gemini output as reviewer assistance; policy enforcement should remain deterministic if blocking merges is added later.
 
-## Demo story
+## Verification
 
-1. Open PR that renames or drops column used downstream.
-2. MetaReview detects changed table references.
-3. OpenMetadata reveals lineage and sensitive tags.
-4. Gemini explains risk in plain language.
-5. GitHub comment shows impact score and recommended next step.
+Run unit tests locally:
 
-## Hackathon positioning
+```bash
+PYTHONPATH=src python3 -B -m unittest discover -s tests -v
+```
 
-- Real pain: broken dashboards, accidental PII misuse, blind schema changes
-- Strong technical depth: GitHub + OpenMetadata + Gemini in one loop
-- Fast to demo: single PR action, visible result, no front-end dependency
-- Clear expansion path: Slack alerts, policy enforcement, auto-fix suggestions
+Current coverage validates:
 
-## Local OpenMetadata defaults
+- GitHub API pagination and stable comment upserts
+- OpenMetadata URL and response-shape handling
+- SQL, quoted identifier, and dbt macro parsing
+- Risk scoring for sensitive columns and unrelated-table false positives
 
-If you choose local Docker instead of the hosted sandbox, use:
+## Security Model
 
-- `OPENMETADATA_URL=http://localhost:8585/api`
-- `OPENMETADATA_VERIFY_SSL=false`
+MetaReview is designed as a pre-merge reviewer, not a data extractor.
+
+- Reads GitHub PR metadata and patches.
+- Calls OpenMetadata metadata APIs.
+- Posts GitHub issue comments.
+- Does not run changed SQL.
+- Does not connect to the warehouse.
+- Does not copy result rows or expose data samples.
+
+## Roadmap
+
+- Policy mode for merge-blocking rules
+- Repository-level configuration file
+- Inline review comments for exact SQL lines
+- Slack or Teams notification integration
+- Expanded dbt manifest support
