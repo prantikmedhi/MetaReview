@@ -81,22 +81,7 @@ class OpenMetadataClient:
 
         return column_tags, pii_columns, deprecated_columns
 
-    def lookup_table(self, table_name: str, max_depth: int) -> TableMetadata | None:
-        search = self._get(
-            "/api/v1/search/query",
-            params={"q": f'name:{table_name}', "index": "table_search_index"},
-        )
-        hits = search.get("hits", {}).get("hits", [])
-        if not hits:
-            return None
-
-        source = hits[0].get("_source", {})
-        fqn = source.get("fullyQualifiedName") or source.get("name")
-        if not fqn:
-            return None
-
-        table = self._get("/api/v1/tables/name/" + quote(fqn, safe=""))
-        entity = table
+    def _build_table_metadata(self, entity: dict[str, Any], fqn: str, max_depth: int) -> TableMetadata:
         entity_id = entity.get("id")
         columns = entity.get("columns", [])
         column_tags, pii_columns, deprecated_columns = self._extract_column_tags(columns)
@@ -115,7 +100,7 @@ class OpenMetadataClient:
                     downstream_assets.append(label)
 
         return TableMetadata(
-            name=entity.get("name", table_name),
+            name=entity.get("name", fqn.split(".")[-1]),
             fully_qualified_name=fqn,
             description=entity.get("description") or "",
             tags=table_tags,
@@ -124,3 +109,29 @@ class OpenMetadataClient:
             deprecated_columns=sorted(set(deprecated_columns)),
             pii_columns=sorted(set(pii_columns)),
         )
+
+    def lookup_table(self, table_name: str, max_depth: int) -> TableMetadata | None:
+        if "." in table_name:
+            try:
+                entity = self._get("/api/v1/tables/name/" + quote(table_name, safe=""))
+                fqn = entity.get("fullyQualifiedName") or table_name
+                return self._build_table_metadata(entity, fqn, max_depth)
+            except requests.HTTPError as exc:
+                if exc.response is None or exc.response.status_code != 404:
+                    raise
+
+        search = self._get(
+            "/api/v1/search/query",
+            params={"q": f'name:{table_name}', "index": "table_search_index"},
+        )
+        hits = search.get("hits", {}).get("hits", [])
+        if not hits:
+            return None
+
+        source = hits[0].get("_source", {})
+        fqn = source.get("fullyQualifiedName") or source.get("name")
+        if not fqn:
+            return None
+
+        table = self._get("/api/v1/tables/name/" + quote(fqn, safe=""))
+        return self._build_table_metadata(table, fqn, max_depth)
