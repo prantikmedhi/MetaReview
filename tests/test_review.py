@@ -85,6 +85,24 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(risk.score, 6.0)
         self.assertEqual(risk.pii_hits, ["email", "phone_number"])
 
+    def test_risk_summary_flags_sensitive_sql_column_names_when_metadata_lacks_tags(self) -> None:
+        parsed = ParsedChanges(
+            sql_snippets=["select email, phone_number from crm.customers"],
+            tables=["crm.customers"],
+            columns=[],
+            touched_files=["models/customers.sql"],
+        )
+        table = TableMetadata(
+            name="customers",
+            fully_qualified_name="crm.customers",
+        )
+
+        risk = build_risk_summary(parsed, [table])
+
+        self.assertEqual(risk.level, "MEDIUM")
+        self.assertEqual(risk.score, 6.0)
+        self.assertEqual(risk.pii_hits, ["email", "phone_number"])
+
 
 if __name__ == "__main__":
     unittest.main()
