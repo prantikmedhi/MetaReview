@@ -154,41 +154,47 @@ def call_gemini(api_key: str, model: str, prompt: str) -> str:
 
 
 def build_fallback_review(parsed: ParsedChanges, risk: RiskSummary) -> str:
-    summary = f"MetaReview assessed this PR as **{risk.level}** risk with score **{risk.score}/10**."
+    summary = f"> MetaReview assessed this PR as **{risk.level}** risk with score **{risk.score}/10**."
     risks = []
     if risk.pii_hits:
-        risks.append(f"- PII-sensitive fields detected: {', '.join(risk.pii_hits)}")
+        risks.append(f"- 🔴 **PII-sensitive fields detected:** `{', '.join(risk.pii_hits)}`")
     if risk.deprecated_hits:
-        risks.append(f"- Deprecated fields referenced: {', '.join(risk.deprecated_hits)}")
+        risks.append(f"- 🟡 **Deprecated fields referenced:** `{', '.join(risk.deprecated_hits)}`")
     if risk.downstream_assets:
-        risks.append(f"- Downstream assets potentially affected: {', '.join(risk.downstream_assets[:6])}")
+        risks.append(f"- ⚠️ **Downstream assets potentially affected:** `{', '.join(risk.downstream_assets[:6])}`")
     if not risks:
-        risks.append("- No critical metadata risks detected from available context.")
+        risks.append("- ✅ No critical metadata risks detected from available context.")
 
-    action = "- Validate schema compatibility before merge.\n- Confirm downstream owners are aware if lineage impact is expected."
+    action = "- [ ] Validate schema compatibility before merge.\n- [ ] Confirm downstream owners are aware if lineage impact is expected."
+
+    files_list = f"`{'`, `'.join(parsed.touched_files)}`" if parsed.touched_files else "None"
+    tables_list = f"`{'`, `'.join(parsed.tables)}`" if parsed.tables else "None detected"
 
     return "\n".join(
         [
-            "## Summary",
+            "### 📋 Summary",
             summary,
             "",
-            "## Risks",
+            "### ⚠️ Risks",
             *risks,
             "",
-            "## Impact",
-            f"- SQL-bearing files analyzed: {', '.join(parsed.touched_files) if parsed.touched_files else 'None'}",
-            f"- Referenced tables: {', '.join(parsed.tables) if parsed.tables else 'None detected'}",
+            "### 🔍 Impact",
+            f"**SQL-bearing files analyzed:**\n{files_list}\n",
+            f"<details><summary><b>Referenced Tables</b></summary>\n\n{tables_list}\n</details>",
             "",
-            "## Recommended Action",
+            "### 🛠️ Recommended Action",
             action,
         ]
     )
 
 
 def wrap_comment(review_body: str, risk: RiskSummary) -> str:
+    icon = "🔴" if risk.level == "HIGH" else "🟡" if risk.level == "MEDIUM" else "🟢"
     banner = (
         f"{COMMENT_MARKER}\n"
-        f"# MetaReview Bot\n\n"
-        f"**Impact Score:** `{risk.level}` ({risk.score}/10)\n\n"
+        f"## 🛡️ MetaReview Data Risk Scan\n\n"
+        f"| Risk Level | Score |\n"
+        f"|:---:|:---:|\n"
+        f"| {icon} **{risk.level}** | **{risk.score}**/10 |\n\n"
     )
     return banner + review_body.strip() + "\n"

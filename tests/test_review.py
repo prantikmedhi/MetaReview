@@ -46,7 +46,7 @@ class ReviewTests(unittest.TestCase):
         comment = wrap_comment(review, risk)
 
         self.assertIn("<!-- metareview-comment -->", comment)
-        self.assertIn("**Impact Score:** `LOW` (1.0/10)", comment)
+        self.assertIn("| 🟢 **LOW** | **1.0**/10 |", comment)
         self.assertIn("models/customers.sql", comment)
         self.assertIn("crm.customers", comment)
 
