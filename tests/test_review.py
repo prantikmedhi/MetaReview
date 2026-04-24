@@ -71,6 +71,20 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(risk.pii_hits, [])
         self.assertEqual(risk.downstream_assets, [])
 
+    def test_risk_summary_flags_sensitive_sql_column_names_without_metadata(self) -> None:
+        parsed = ParsedChanges(
+            sql_snippets=["select email, phone_number from crm.customers"],
+            tables=["crm.customers"],
+            columns=[],
+            touched_files=["models/customers.sql"],
+        )
+
+        risk = build_risk_summary(parsed, [])
+
+        self.assertEqual(risk.level, "MEDIUM")
+        self.assertEqual(risk.score, 6.0)
+        self.assertEqual(risk.pii_hits, ["email", "phone_number"])
+
 
 if __name__ == "__main__":
     unittest.main()
