@@ -30,13 +30,21 @@ MetaReview **does not** execute pull request SQL and **does not** extract wareho
 
 ```mermaid
 flowchart TD
-    A[Pull request] --> B[GitHub Action]
-    B --> C[MetaReview parser]
-    C --> D[OpenMetadata API]
-    C --> E[Risk scorer]
-    D --> E
-    E --> F[Gemini review writer]
-    F --> G[GitHub PR comment]
+    A([🔔 Pull Request opened / updated]) --> B[GitHub Action triggered]
+    B --> C[Fetch PR files\nup to MAX_FILES]
+    C --> D{SQL-bearing\nfiles present?}
+    D -- No --> Z([No review posted])
+    D -- Yes --> E[Parse SQL diff\nExtract tables · columns · dbt refs]
+    E --> F[OpenMetadata lookup\nper referenced table]
+    F --> G[Collect metadata\ntags · PII columns · deprecated fields · lineage]
+    G --> H[Risk Engine\nScore PII · deprecated · downstream impact]
+    H --> I[Build review prompt\nwith full metadata context]
+    I --> J{Call Gemini\nwith model fallbacks}
+    J -- Success --> K[AI-generated review text]
+    J -- All models fail --> L[Deterministic\nfallback review text]
+    K --> M[Wrap with risk banner\nLOW · MEDIUM · HIGH]
+    L --> M
+    M --> N([Upsert stable PR comment\non GitHub])
 ```
 
 ## Architecture
